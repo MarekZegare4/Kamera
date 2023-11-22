@@ -23,7 +23,7 @@ switch = False
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("My App")
+        self.setWindowTitle("Kamera")
         self.setMinimumSize(QSize(400, 300))
         self.disply_width = int(800)
         self.display_height = int(600)
