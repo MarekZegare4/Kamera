@@ -18,13 +18,14 @@ model = YOLO('yolov8n.pt')
 
 frame = []
 switch = False
+url = ''
 
 # Główne okno
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Kamera")
-        self.setMinimumSize(QSize(800, 600))
+        self.setMinimumSize(QSize(1000, 600))
         self.resize(self.sizeHint())
         
         self.central_widget = QWidget()
@@ -42,11 +43,23 @@ class MainWindow(QMainWindow):
 class SettingsWidget(QWidget):
     def __init__(self):
         super().__init__()
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
-        self.label = QLabel('Ustawienia')
+        #self.layout = QVBoxLayout()
+        #self.setLayout(self.layout)
+        label = QLabel(self)
+        label.setText("Ustawienia")
+        label.move(10, 80)
+
+        self.url_box = QLineEdit(self)
+        self.url_box.move(10, 130)
+        self.url_box.resize(200, 25)
+
+        url_button = QPushButton(self)
+        url_button.move(210, 130)
+        url_button.setText("Ok")
+        url_button.clicked.connect(self.set_url)
 
         combo = QComboBox(self)
+        combo.move(10, 100)
         combo.addItem('n')
         combo.addItem('s')
         combo.addItem('m')
@@ -54,8 +67,8 @@ class SettingsWidget(QWidget):
         combo.addItem('x')
 
         combo.currentIndexChanged.connect(self.set_model)
-        self.layout.addWidget(self.label)
-        self.layout.addWidget(combo)
+        #self.layout.addWidget(self.label)
+        #self.layout.addWidget(combo)
 
     def set_model(self, index):
         global model
@@ -69,6 +82,12 @@ class SettingsWidget(QWidget):
             model = YOLO('yolov8l.pt')
         if index == 4:
             model = YOLO('yolov8x.pt')
+
+    def set_url(self):
+        global url
+        url = self.url_box.text()
+        print(url)
+        
 
 class VideoWidget(QWidget):
     def __init__(self):
@@ -131,16 +150,26 @@ class VideoWidget(QWidget):
 # Wątek odpowiedzialny za pobranie klatek wideo ze źródła
 class VideoThread(QThread):
     oryg_video = pyqtSignal(np.ndarray)
-    global screen_size
+    global url
+    active = True
     def run(self):
-        global frame 
-        cap = cv2.VideoCapture(RTSP_URL, cv2.CAP_FFMPEG)
+        self.active = True
+        global frame
+        cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+        url_buf1 = url
         while True:
+            if url_buf1 != url:
+                cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+                url_buf1 = url
             ret, cv_img = cap.read()
             if ret:
                 frame = cv_img
                 self.oryg_video.emit(cv_img)
+            
 
+    def stop(self):
+        self.active = False
+        self.wait()
    
 
 
