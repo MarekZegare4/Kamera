@@ -10,15 +10,14 @@ import numpy as np
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;udp'
 
-# Adres streamu wideo
-RTSP_URL = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compression=30&mirror=0&rotation=0&textsize=small&textposition=b'
-
 # Wybór modelu 
 model = YOLO('yolov8n.pt')
 
 frame = []
 switch = False
-url = ''
+
+# Adres streamu wideo
+url = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compression=30&mirror=0&rotation=0&textsize=small&textposition=b'
 
 # Główne okno
 class MainWindow(QMainWindow):
