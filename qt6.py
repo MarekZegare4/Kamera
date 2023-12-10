@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtGui import QPixmap
 from ultralytics import YOLO
 import numpy as np
+import torch
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;udp'
 
@@ -17,7 +18,10 @@ frame = []
 switch = False
 
 # Adres streamu wideo
-url = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compression=30&mirror=0&rotation=0&textsize=small&textposition=b'
+#url = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compression=30&mirror=0&rotation=0&textsize=small&textposition=b'
+#url = 'http://63.142.183.154:6103/mjpg/video.mjpg'
+url = 'http://77.110.203.114:82/mjpg/video.mjpg'
+
 
 # Główne okno
 class MainWindow(QMainWindow):
@@ -180,11 +184,16 @@ class ModelThread(QThread):
         self.active = True
         global frame
         while self.active:
-            print('dzialla')
             if switch:
                 if len(frame) > 0:
                     results = model.track(frame, hide_labels=False)
                     annotated_frame = results[0].plot()
+                    for result in results:
+                        xywh = result.boxes.xywh.tolist()
+                        if xywh != 0:
+                            for i in xywh:
+                                center = (int(i[0]), int(i[1]))
+                                cv2.circle(annotated_frame,center, 10, (0,0,255), -1)
                     self.model_video.emit(annotated_frame)
 
     def stop(self):
