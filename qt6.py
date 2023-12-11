@@ -14,13 +14,17 @@ os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;udp'
 # Wybór modelu 
 model = YOLO('yolov8n.pt')
 
+# Wybranie GPU jezeli dostępne
+device: str = "mps" if torch.backends.mps.is_available() else "cpu"
+model.to(device)
+
 frame = []
 switch = False
 
 # Adres streamu wideo
-#url = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compression=30&mirror=0&rotation=0&textsize=small&textposition=b'
+url = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compression=30&mirror=0&rotation=0&textsize=small&textposition=b'
 #url = 'http://63.142.183.154:6103/mjpg/video.mjpg'
-url = 'http://77.110.203.114:82/mjpg/video.mjpg'
+#url = 'http://77.110.203.114:82/mjpg/video.mjpg'
 
 font = cv2.FONT_HERSHEY_SIMPLEX
 fontScale = 2
