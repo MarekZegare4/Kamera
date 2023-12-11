@@ -22,6 +22,10 @@ switch = False
 #url = 'http://63.142.183.154:6103/mjpg/video.mjpg'
 url = 'http://77.110.203.114:82/mjpg/video.mjpg'
 
+font = cv2.FONT_HERSHEY_SIMPLEX
+fontScale = 2
+color = (255,0,255)
+thickness = 8
 
 # Główne okno
 class MainWindow(QMainWindow):
@@ -186,14 +190,16 @@ class ModelThread(QThread):
         while self.active:
             if switch:
                 if len(frame) > 0:
-                    results = model.track(frame, hide_labels=False)
+                    results = model.track(frame, show_labels=True)
                     annotated_frame = results[0].plot()
+                    speed = results[0].speed["inference"]
                     for result in results:
                         xywh = result.boxes.xywh.tolist()
                         if xywh != 0:
                             for i in xywh:
                                 center = (int(i[0]), int(i[1]))
                                 cv2.circle(annotated_frame,center, 10, (0,0,255), -1)
+                                cv2.putText(annotated_frame, str(round(1/(speed/1000), 1))+" FPS", (50, 100), font, fontScale, color, thickness, cv2.LINE_AA)
                     self.model_video.emit(annotated_frame)
 
     def stop(self):
