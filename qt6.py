@@ -8,6 +8,7 @@ from PyQt6.QtGui import QPixmap
 from ultralytics import YOLO
 import numpy as np
 import torch
+import time
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;udp'
 
@@ -29,7 +30,7 @@ url = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compressi
 font = cv2.FONT_HERSHEY_SIMPLEX
 fontScale = 2
 color = (255,0,255)
-thickness = 8
+thickness = 3
 
 # Główne okno
 class MainWindow(QMainWindow):
@@ -194,18 +195,23 @@ class ModelThread(QThread):
         while self.active:
             if switch:
                 if len(frame) > 0:
+                    start_time = time.time()
                     results = model.track(frame, show_labels=True)
                     annotated_frame = results[0].plot()
-                    speed = results[0].speed["inference"]
+                    #speed = results[0].speed["inference"]
                     for result in results:
                         xywh = result.boxes.xywh.tolist()
                         if xywh != 0:
                             for i in xywh:
                                 center = (int(i[0]), int(i[1]))
                                 cv2.circle(annotated_frame,center, 10, (0,0,255), -1)
-                                cv2.putText(annotated_frame, str(round(1/(speed/1000), 1))+" FPS", (50, 100), font, fontScale, color, thickness, cv2.LINE_AA)
+                    lag = time.time() - start_time
+                    if lag < 0.033: # ograniczenie FPS do 30
+                        print("LAG")
+                        time.sleep(0.033 - lag)
+                    cv2.putText(annotated_frame, str(round(1/(time.time() - start_time), 2))+" FPS", (50, 100), font, fontScale, color, thickness, cv2.LINE_AA)
                     self.model_video.emit(annotated_frame)
-
+                    
     def stop(self):
         self.active = False
         self.wait()
