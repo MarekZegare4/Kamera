@@ -12,4 +12,4 @@
  - ultralytics
  - numpy
 
-   `pip install pyqt6 opencv-python opencv-contrib-python ultralytics numpy`
+   `pip install pyqt6 opencv-python opencv-contrib-python ultralytics numpy torch`
