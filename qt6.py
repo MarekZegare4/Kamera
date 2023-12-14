@@ -21,10 +21,11 @@ model.to(device)
 
 frame = []
 switch = False
+mutex = QMutex()
 
 # Adres streamu wideo
-url = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compression=30&mirror=0&rotation=0&textsize=small&textposition=b'
-#url = 'http://63.142.183.154:6103/mjpg/video.mjpg'
+#url = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compression=30&mirror=0&rotation=0&textsize=small&textposition=b'
+url = 'http://63.142.183.154:6103/mjpg/video.mjpg'
 #url = 'http://77.110.203.114:82/mjpg/video.mjpg'
 
 font = cv2.FONT_HERSHEY_SIMPLEX
@@ -170,6 +171,7 @@ class VideoThread(QThread):
         cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
         url_buf1 = url
         while True:
+            mutex.lock()
             if url_buf1 != url:
                 cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
                 url_buf1 = url
@@ -177,7 +179,7 @@ class VideoThread(QThread):
             if ret:
                 frame = cv_img
                 self.oryg_video.emit(cv_img)
-            
+            mutex.unlock()
 
     def stop(self):
         self.active = False
@@ -193,6 +195,7 @@ class ModelThread(QThread):
         self.active = True
         global frame
         while self.active:
+            mutex.lock()
             if switch:
                 if len(frame) > 0:
                     start_time = time.time()
@@ -205,13 +208,13 @@ class ModelThread(QThread):
                             for i in xywh:
                                 center = (int(i[0]), int(i[1]))
                                 cv2.circle(annotated_frame,center, 10, (0,0,255), -1)
-                    lag = time.time() - start_time
-                    if lag < 0.033: # ograniczenie FPS do 30
-                        print("LAG")
-                        time.sleep(0.033 - lag)
+                   # lag = time.time() - start_time
+                   # if lag < 0.033: # ograniczenie FPS do 30
+                   #     time.sleep(0.033 - lag)
                     cv2.putText(annotated_frame, str(round(1/(time.time() - start_time), 2))+" FPS", (50, 100), font, fontScale, color, thickness, cv2.LINE_AA)
                     self.model_video.emit(annotated_frame)
-                    
+            mutex.unlock()    
+
     def stop(self):
         self.active = False
         self.wait()
