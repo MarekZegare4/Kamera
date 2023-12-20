@@ -212,7 +212,7 @@ class ModelThread(QThread):
             if switch:
                 if len(frame) > 0:
                     start_time = time.time()
-                    results = model.track(frame, show_labels=True)
+                    results = model.track(frame, show_labels=True, classes=[0])
                     annotated_frame = results[0].plot()
                     #speed = results[0].speed["inference"]
                     for result in results:
