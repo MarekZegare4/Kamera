@@ -11,5 +11,6 @@
  - OpenCV
  - ultralytics
  - numpy
+ - pytorch
 
    `pip install pyqt6 opencv-python opencv-contrib-python ultralytics numpy torch`
