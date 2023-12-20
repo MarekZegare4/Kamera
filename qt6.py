@@ -199,7 +199,7 @@ class VideoThread(QThread):
    
 
 
-# Wątek opdowiedzialny za przepuszczanie klatek przez model
+#   Wątek opdowiedzialny za przepuszczanie klatek przez model
 class ModelThread(QThread):
     model_video = pyqtSignal(np.ndarray)
     active = True
@@ -232,7 +232,7 @@ class ModelThread(QThread):
         self.active = False
         self.wait()
 
-
+#   Wątek odpowiedzialny za komunikajcę z kamerą
 class CommThread(QThread):
     def run(self):
         global connected
@@ -241,16 +241,23 @@ class CommThread(QThread):
         sock.listen(1)
         self.active = True
         data = "Działa"
-        (clientConnected, clientAddress) = sock.accept()
-        while self.active and clientConnected != 0:
-            connected = True
-            try:
-                clientConnected.send(data.encode())
-            except socket.error:
-                print("Połączenie przerwane")
-                connected = False
-                (clientConnected, clientAddress) = sock.accept()
-            time.sleep(0.1)
+        while self.active:
+            while not connected:
+                try:
+                    print("czekanie na połączenie")
+                    (clientConnected, clientAddress) = sock.accept()
+                    connected = True
+                except:
+                    connected = False
+
+            while True:
+                try:
+                    clientConnected.send(data.encode())
+                except socket.error:
+                    connected = False
+                    print("Połączenie przerwane")
+                    break
+       
 
     def stop(self):
         self.active = False
