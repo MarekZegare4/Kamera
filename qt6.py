@@ -26,6 +26,7 @@ mutex = QMutex()
 
 tcp_ip = ''
 tcp_port = 6060
+connected = False
 
 # Adres streamu wideo
 #url = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compression=30&mirror=0&rotation=0&textsize=small&textposition=b'
@@ -170,6 +171,7 @@ class VideoWidget(QWidget):
 class VideoThread(QThread):
     oryg_video = pyqtSignal(np.ndarray)
     global url
+    global connected
     active = True
     def run(self):
         self.active = True
@@ -184,6 +186,10 @@ class VideoThread(QThread):
             ret, cv_img = cap.read()
             if ret:
                 frame = cv_img
+                if connected:
+                    cv2.putText(frame, "Connected", (50, 200), font, 1, (0,255,0), thickness, cv2.LINE_AA)
+                else:
+                    cv2.putText(frame, "Disonnected", (50, 200), font, 1, (0,0,255), thickness, cv2.LINE_AA)
                 self.oryg_video.emit(cv_img)
             mutex.unlock()
 
@@ -200,6 +206,7 @@ class ModelThread(QThread):
     def run(self):
         self.active = True
         global frame
+        global connected
         while self.active:
             mutex.lock()
             if switch:
@@ -228,19 +235,22 @@ class ModelThread(QThread):
 
 class CommThread(QThread):
     def run(self):
+        global connected
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.bind((tcp_ip, tcp_port))
         sock.listen(1)
         self.active = True
-        data = "Działa\n"
+        data = "Działa"
         (clientConnected, clientAddress) = sock.accept()
         while self.active and clientConnected != 0:
+            connected = True
             try:
-                time.sleep(1)
                 clientConnected.send(data.encode())
             except socket.error:
                 print("Połączenie przerwane")
+                connected = False
                 (clientConnected, clientAddress) = sock.accept()
+            time.sleep(0.1)
 
     def stop(self):
         self.active = False
