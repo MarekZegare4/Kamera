@@ -9,6 +9,7 @@ from ultralytics import YOLO
 import numpy as np
 import torch
 import time
+import socket
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;udp'
 
@@ -22,6 +23,9 @@ model.to(device)
 frame = []
 switch = False
 mutex = QMutex()
+
+tcp_ip = ''
+tcp_port = 6060
 
 # Adres streamu wideo
 #url = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compression=30&mirror=0&rotation=0&textsize=small&textposition=b'
@@ -125,7 +129,9 @@ class VideoWidget(QWidget):
 
         self.video_thread = VideoThread()
         self.model_thread = ModelThread()
-    
+        self.com_thread = CommThread()
+
+        self.com_thread.start()
         self.video_thread.start()
 
         self.video_thread.oryg_video.connect(self.update_orgvid)
@@ -214,6 +220,27 @@ class ModelThread(QThread):
                     cv2.putText(annotated_frame, str(round(1/(time.time() - start_time), 2))+" FPS", (50, 100), font, fontScale, color, thickness, cv2.LINE_AA)
                     self.model_video.emit(annotated_frame)
             mutex.unlock()    
+
+    def stop(self):
+        self.active = False
+        self.wait()
+
+
+class CommThread(QThread):
+    def run(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind((tcp_ip, tcp_port))
+        sock.listen(1)
+        self.active = True
+        data = "Działa\n"
+        (clientConnected, clientAddress) = sock.accept()
+        while self.active and clientConnected != 0:
+            try:
+                time.sleep(1)
+                clientConnected.send(data.encode())
+            except socket.error:
+                print("Połączenie przerwane")
+                (clientConnected, clientAddress) = sock.accept()
 
     def stop(self):
         self.active = False
