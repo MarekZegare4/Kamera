@@ -44,67 +44,49 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Kamera")
         self.setMinimumSize(QSize(1000, 600))
-        self.resize(self.sizeHint())
-        
+
         self.central_widget = QWidget()
         self.layout = QHBoxLayout()
-        self.set_widget = SettingsWidget()
         self.vid_widget = VideoWidget()
 
         self.setCentralWidget(self.central_widget)
         self.central_widget.setLayout(self.layout)
 
         self.layout.addWidget(self.vid_widget)
-        self.layout.addWidget(self.set_widget)
-        
- 
-class SettingsWidget(QWidget):
-    def __init__(self):
-        super().__init__()
-        #self.layout = QVBoxLayout()
-        #self.setLayout(self.layout)
-        label = QLabel(self)
-        label.setText("Ustawienia")
-        label.move(10, 80)
+        self.adjustSize()
 
-        self.url_box = QLineEdit(self)
-        self.url_box.move(10, 130)
-        self.url_box.resize(200, 25)
+        self.create_menu()
 
-        url_button = QPushButton(self)
-        url_button.move(210, 130)
-        url_button.setText("Ok")
-        url_button.clicked.connect(self.set_url)
+    def create_menu(self):
+        menu_bar = self.menuBar()
 
-        combo = QComboBox(self)
-        combo.move(10, 100)
-        combo.addItem('n')
-        combo.addItem('s')
-        combo.addItem('m')
-        combo.addItem('l')
-        combo.addItem('x')
+        # Tworzenie menu Ustawienia
+        settings_menu = menu_bar.addMenu("Ustawienia")
 
-        combo.currentIndexChanged.connect(self.set_model)
-        #self.layout.addWidget(self.label)
-        #self.layout.addWidget(combo)
+        # Dodawanie akcji do menu Ustawienia
+        change_url_action = QAction("Zmień URL", self)
+        change_url_action.triggered.connect(self.change_url)
+        settings_menu.addAction(change_url_action)
 
-    def set_model(self, index):
-        global model
-        if index == 0:
-            model = YOLO('yolov8n.pt')
-        if index == 1:
-            model = YOLO('yolov8s.pt')
-        if index == 2:
-            model = YOLO('yolov8m.pt')
-        if index == 3:
-            model = YOLO('yolov8l.pt')
-        if index == 4:
-            model = YOLO('yolov8x.pt')
+        # Dodawanie opcji zmiany modelu
+        model_menu = settings_menu.addMenu("Zmień model YOLO")
+        models = ['yolov8n.pt', 'yolov8s.pt', 'yolov8m.pt', 'yolov8l.pt', 'yolov8x.pt']
+        for model in models:
+            model_action = QAction(model, self)
+            model_action.triggered.connect(lambda checked, m=model: self.change_model(m))
+            model_menu.addAction(model_action)
 
-    def set_url(self):
+    def change_url(self):
         global url
-        url = self.url_box.text()
-        print(url)
+        new_url, ok = QInputDialog.getText(self, "Zmień URL",
+                                           "Wpisz nowy URL:")  # Okno dialogowe do wpisania nowego URL
+        if ok and new_url:
+            url = new_url  # Aktualizacja URL, jeśli użytkownik kliknął "Ok" i wpisał tekst
+
+    def change_model(self, model_path):
+        global model
+        model = YOLO(model_path)
+        print(f"Model zmieniony na: {model_path}")
         
 
 class VideoWidget(QWidget):
@@ -114,11 +96,7 @@ class VideoWidget(QWidget):
         self.setLayout(self.layout)
         self.label = QLabel('Video')
         self.orgvid_label = QLabel(self)
-        self.orgvid_label.resize(self.orgvid_label.sizeHint()/2)
-
-        self.disply_width = int(1920/2)
-        self.display_height = int(1080/2)
-
+        self.orgvid_label.resize(640, 480)  # Początkowy rozmiar, może być dowolny
 
         model_on = QPushButton()
         model_on.setText("Model toggle")
@@ -153,19 +131,20 @@ class VideoWidget(QWidget):
     def update_orgvid(self, cv_img):
         qt_img = self.convert_cv_qt(cv_img)
         self.orgvid_label.setPixmap(qt_img)
-        #self.orgvid_label.setScaledContents(True)
-    
-    # Zamiana wyjścia z opencv na format, który rozumie Qt
+
     def convert_cv_qt(self, cv_img):
         """Convert from an opencv image to QPixmap"""
         rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb_image.shape
         bytes_per_line = ch * w
+
+        # Pobierz aktualne wymiary widgetu, na którym ma być wyświetlany obraz
+        display_width = self.orgvid_label.width()
+        display_height = self.orgvid_label.height()
+
         convert_to_Qt_format = QtGui.QImage(rgb_image.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_RGB888)
-        p = convert_to_Qt_format.scaled(self.disply_width, self.display_height, Qt.AspectRatioMode.KeepAspectRatio)
+        p = convert_to_Qt_format.scaled(display_width, display_height, Qt.AspectRatioMode.KeepAspectRatio)
         return QPixmap.fromImage(p)
-
-
 
 # Wątek odpowiedzialny za pobranie klatek wideo ze źródła
 class VideoThread(QThread):
