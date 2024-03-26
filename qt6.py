@@ -30,8 +30,13 @@ connected = False
 
 # Adres streamu wideo
 #url = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compression=30&mirror=0&rotation=0&textsize=small&textposition=b'
-url = 'http://63.142.183.154:6103/mjpg/video.mjpg'
+#url = 'http://63.142.183.154:6103/mjpg/video.mjpg'
 #url = 'http://77.110.203.114:82/mjpg/video.mjpg'
+#url = 'rtsp://192.168.0.103:8554/cam'
+#url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+
+url = 'vid2.mp4'
+
 
 font = cv2.FONT_HERSHEY_SIMPLEX
 fontScale = 2
@@ -114,11 +119,7 @@ class VideoWidget(QWidget):
         self.setLayout(self.layout)
         self.label = QLabel('Video')
         self.orgvid_label = QLabel(self)
-        self.orgvid_label.resize(self.orgvid_label.sizeHint()/2)
-
-        self.disply_width = int(1920/2)
-        self.display_height = int(1080/2)
-
+        self.orgvid_label.resize(640, 480)  # Początkowy rozmiar, może być dowolny
 
         model_on = QPushButton()
         model_on.setText("Model toggle")
@@ -153,17 +154,21 @@ class VideoWidget(QWidget):
     def update_orgvid(self, cv_img):
         qt_img = self.convert_cv_qt(cv_img)
         self.orgvid_label.setPixmap(qt_img)
-        #self.orgvid_label.setScaledContents(True)
-    
-    # Zamiana wyjścia z opencv na format, który rozumie Qt
+
     def convert_cv_qt(self, cv_img):
         """Convert from an opencv image to QPixmap"""
         rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb_image.shape
         bytes_per_line = ch * w
+
+        # Pobierz aktualne wymiary widgetu, na którym ma być wyświetlany obraz
+        display_width = self.orgvid_label.width()
+        display_height = self.orgvid_label.height()
+
         convert_to_Qt_format = QtGui.QImage(rgb_image.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_RGB888)
-        p = convert_to_Qt_format.scaled(self.disply_width, self.display_height, Qt.AspectRatioMode.KeepAspectRatio)
+        p = convert_to_Qt_format.scaled(display_width, display_height, Qt.AspectRatioMode.KeepAspectRatio)
         return QPixmap.fromImage(p)
+
 
 
 
@@ -179,7 +184,7 @@ class VideoThread(QThread):
         cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
         url_buf1 = url
         while True:
-            mutex.lock()
+            #mutex.lock()
             if url_buf1 != url:
                 cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
                 url_buf1 = url
@@ -191,7 +196,8 @@ class VideoThread(QThread):
                 else:
                     cv2.putText(frame, "Disonnected", (50, 200), font, 1, (0,0,255), thickness, cv2.LINE_AA)
                 self.oryg_video.emit(cv_img)
-            mutex.unlock()
+            time.sleep(0.03)
+            #mutex.unlock()
 
     def stop(self):
         self.active = False
@@ -208,11 +214,11 @@ class ModelThread(QThread):
         global frame
         global connected
         while self.active:
-            mutex.lock()
+           # mutex.lock()
             if switch:
                 if len(frame) > 0:
                     start_time = time.time()
-                    results = model.track(frame, show_labels=True)
+                    results = model.track(frame, show_labels=True, classes = [0])
                     annotated_frame = results[0].plot()
                     #speed = results[0].speed["inference"]
                     for result in results:
@@ -226,7 +232,7 @@ class ModelThread(QThread):
                    #     time.sleep(0.033 - lag)
                     cv2.putText(annotated_frame, str(round(1/(time.time() - start_time), 2))+" FPS", (50, 100), font, fontScale, color, thickness, cv2.LINE_AA)
                     self.model_video.emit(annotated_frame)
-            mutex.unlock()    
+            #mutex.unlock()    
 
     def stop(self):
         self.active = False
