@@ -11,7 +11,8 @@ import torch
 import time
 import socket
 
-os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;udp'
+os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
+#os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'webrtc_transport'
 
 # Wybór modelu 
 model = YOLO('yolov8n.pt')
@@ -35,7 +36,8 @@ connected = False
 #url = 'rtsp://192.168.0.103:8554/cam'
 #url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
 
-url = 'vid2.mp4'
+url = 'rtsp://10.3.141.1:8554/cam'
+#url = 'rtsp://10.3.141.1:8889/cam'
 
 
 font = cv2.FONT_HERSHEY_SIMPLEX
@@ -189,6 +191,7 @@ class VideoThread(QThread):
                 cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
                 url_buf1 = url
             ret, cv_img = cap.read()
+            cv_img = cv2.rotate(cv_img, cv2.ROTATE_90_CLOCKWISE)
             if ret:
                 frame = cv_img
                 if connected:
@@ -263,6 +266,7 @@ class CommThread(QThread):
                     connected = False
                     print("Połączenie przerwane")
                     break
+            time.sleep(1)
        
 
     def stop(self):
