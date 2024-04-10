@@ -1,27 +1,31 @@
 import socket
 import struct
 import sys
+import pickle
 
-multicast_group = '224.3.29.71'
+class wspolrzedne:
+    def __init__(self, x ,y):
+        self.x = x
+        self.y = y
+
+multicast_group = '224.0.0.0'
 server_address = ('', 10000)
-
+multicast_port = 6060
 # Create the socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 # Bind to the server address
-sock.bind(server_address)
+sock.bind((multicast_group, multicast_port))
 # Tell the operating system to add the socket to the multicast group
 # on all interfaces.
 group = socket.inet_aton(multicast_group)
 mreq = struct.pack('4sL', group, socket.INADDR_ANY)
 sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-# Receive/respond loop
 while True:
-    print(sys.stderr, '\nwaiting to receive message')
     data, address = sock.recvfrom(1024)
-    
-    print(sys.stderr, 'received %s bytes from %s' % (len(data), address))
-    print(sys.stderr, data)
+    message =  pickle.loads(data)
+    print('Odebrano współrzędne:')
+    print('X ' + str(message.x))
+    print('Y ' + str(message.y) + '\n')
 
-    print(sys.stderr, 'sending acknowledgement to', address)
-    sock.sendto(b'ack', address)
+
