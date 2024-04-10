@@ -183,8 +183,7 @@ class VideoThread(QThread):
     def run(self):
         self.active = True
         global frame
-        #cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
-        cap = cv2.VideoCapture("rtspsrc location=rtsp://10.3.141.1:8554/cam ! decodebin ! videoconvert ! appsink max-buffers=1 drop=true")
+        cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
         url_buf1 = url
         while True:
             #mutex.lock()
