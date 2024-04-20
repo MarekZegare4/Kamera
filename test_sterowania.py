@@ -1,19 +1,26 @@
 import RPi.GPIO as GPIO
 import time
-from gpiozero import Servo
-from gpiozero.pins.pigpio import PiGPIOFactory
+import pigpio
+import random
 import socket
 import struct
 import sys
 import pickle
+import errno
 
 class wspolrzedne:
   def __init__(self, x, y):
     self.x = x
     self.y = y
 
-factory = PiGPIOFactory()
-servo = Servo(17, pin_factory=factory)
+servo = 17
+pwm = pigpio.pi()
+if pwm.connected:
+  print("Jest połączenie")
+
+pwm.set_mode(servo, pigpio.OUTPUT)
+pwm.set_PWM_frequency(servo, 50)
+
 pozycja_sledzenia = 0
 screen_width = 640
 
@@ -40,15 +47,21 @@ try:
       pozycja_sledzenia = 0
     print("Pozycja sledzenia wynosi " + str(pozycja_sledzenia))
     while (pozycja_sledzenia < -0.05):
-      servo.value = pozycja_sledzenia
+      pulsewidth = pozycja_sledzenia * 500
+      pulsewidth = pulsewidth + 1500
+      pwm.set_servo_pulsewidth(servo, pulsewidth)
       pozycja_sledzenia = pozycja_sledzenia + 0.01
       time.sleep(0.1)
     while (pozycja_sledzenia > 0.05):
-      servo.value = pozycja_sledzenia
+      pulsewidth = pozycja_sledzenia * 500
+      pulsewidth = pulsewidth + 1500
+      pwm.set_servo_pulsewidth(servo, pulsewidth)
       pozycja_sledzenia = pozycja_sledzenia - 0.01
       time.sleep(0.1)
-    servo.mid()
+    pwm.set_servo_pulsewidth(servo, 1500)
     time.sleep(2)
 
 except KeyboardInterrupt:
+  pwm.set_PWM_dutycycle(servo, 0)
+  pwm.set_PWM_frequency(servo, 0)
   print("Koniec")
