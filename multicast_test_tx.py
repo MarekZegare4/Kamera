@@ -3,6 +3,7 @@ import struct
 import time
 import random
 import pickle
+import sys
 
 class wspolrzedne:
     def __init__(self, x ,y):
@@ -18,6 +19,7 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 # local network segment.
 ttl = struct.pack('b', 1)
 sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 60)
 while True:
     xy = wspolrzedne(random.randrange(0, 500), random.randrange(0, 500))
     try:

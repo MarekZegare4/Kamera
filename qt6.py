@@ -10,6 +10,8 @@ import numpy as np
 import torch
 import time
 import socket
+import queue
+import threading
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
 #os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'webrtc_transport'
@@ -45,6 +47,32 @@ fontScale = 2
 color = (255,0,255)
 thickness = 3
 
+# https://stackoverflow.com/questions/43665208/how-to-get-the-latest-frame-from-capture-device-camera-in-opencv
+# bufferless VideoCapture
+class VideoCapture:
+  def __init__(self, name, arg = None):
+    self.cap = cv2.VideoCapture(name, arg)
+    self.q = queue.Queue()
+    t = threading.Thread(target=self._reader)
+    t.daemon = True
+    t.start()
+
+  # read frames as soon as they are available, keeping only most recent one
+  def _reader(self):
+    while True:
+      ret, frame = self.cap.read()
+      if not ret:
+        break
+      if not self.q.empty():
+        try:
+          self.q.get_nowait()   # discard previous (unprocessed) frame
+        except queue.Empty:
+          pass
+      self.q.put(frame)
+
+  def read(self):
+    return self.q.get()
+
 # Główne okno
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -54,15 +82,15 @@ class MainWindow(QMainWindow):
         self.resize(self.sizeHint())
         
         self.central_widget = QWidget()
-        self.layout = QHBoxLayout()
-        self.set_widget = SettingsWidget()
+        self.layout = QVBoxLayout()
+        #self.set_widget = SettingsWidget()
         self.vid_widget = VideoWidget()
 
         self.setCentralWidget(self.central_widget)
         self.central_widget.setLayout(self.layout)
 
         self.layout.addWidget(self.vid_widget)
-        self.layout.addWidget(self.set_widget)
+        #self.layout.addWidget(self.set_widget)
         
  
 class SettingsWidget(QWidget):
@@ -118,6 +146,7 @@ class VideoWidget(QWidget):
     def __init__(self):
         super().__init__()
         self.layout = QVBoxLayout()
+        self.layout2 = QHBoxLayout()
         self.setLayout(self.layout)
         self.label = QLabel('Video')
         self.orgvid_label = QLabel(self)
@@ -127,15 +156,20 @@ class VideoWidget(QWidget):
         model_on.setText("Model toggle")
         model_on.pressed.connect(self.Click)
 
+        move_left = QPushButton()
+        move_left.setText("<")
+
+
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.orgvid_label, Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(model_on)
+        self.layout.addWidget(move_left)
 
         self.video_thread = VideoThread()
         self.model_thread = ModelThread()
         self.com_thread = CommThread()
 
-        self.com_thread.start()
+        #self.com_thread.start()
         self.video_thread.start()
 
         self.video_thread.oryg_video.connect(self.update_orgvid)
@@ -151,6 +185,7 @@ class VideoWidget(QWidget):
             self.model_thread.stop()
             self.model_thread.model_video.disconnect(self.update_orgvid)
             self.video_thread.oryg_video.connect(self.update_orgvid)
+    
 
     @pyqtSlot(np.ndarray)
     def update_orgvid(self, cv_img):
@@ -177,29 +212,17 @@ class VideoWidget(QWidget):
 # Wątek odpowiedzialny za pobranie klatek wideo ze źródła
 class VideoThread(QThread):
     oryg_video = pyqtSignal(np.ndarray)
-    global url
-    global connected
     active = True
     def run(self):
         self.active = True
         global frame
-        cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
-        url_buf1 = url
+        cap = VideoCapture(url, cv2.CAP_FFMPEG)
         while True:
             #mutex.lock()
-            if url_buf1 != url:
-                cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
-                url_buf1 = url
-            ret, cv_img = cap.read()
-            if not ret: break
+            cv_img = cap.read()
             cv_img = cv2.rotate(cv_img, cv2.ROTATE_90_CLOCKWISE)
-            if ret:
-                frame = cv_img
-                if connected:
-                    cv2.putText(frame, "Connected", (50, 200), font, 1, (0,255,0), thickness, cv2.LINE_AA)
-                else:
-                    cv2.putText(frame, "Disonnected", (50, 200), font, 1, (0,0,255), thickness, cv2.LINE_AA)
-                self.oryg_video.emit(cv_img)
+            frame = cv_img
+            self.oryg_video.emit(cv_img)
             time.sleep(0.03)
             #mutex.unlock()
 

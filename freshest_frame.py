@@ -2,9 +2,8 @@ import cv2, queue, threading, time
 # https://stackoverflow.com/questions/43665208/how-to-get-the-latest-frame-from-capture-device-camera-in-opencv
 # bufferless VideoCapture
 class VideoCapture:
-
-  def __init__(self, name):
-    self.cap = cv2.VideoCapture(name)
+  def __init__(self, name, arg = None):
+    self.cap = cv2.VideoCapture(name, arg)
     self.q = queue.Queue()
     t = threading.Thread(target=self._reader)
     t.daemon = True
