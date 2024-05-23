@@ -5,6 +5,7 @@ from PyQt6 import QtGui
 from PyQt6.QtCore import *
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import QPixmap
+import cv2.data
 from ultralytics import YOLO
 import numpy as np
 import torch
@@ -12,12 +13,16 @@ import time
 import socket
 import queue
 import threading
+import struct
+
+move_coeff = 0
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
 #os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'webrtc_transport'
 
 # Wybór modelu 
-model = YOLO('yolov8n.pt')
+model = YOLO('yolov8m.pt')
+face_classifier = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
 # Wybranie GPU jezeli dostępne
 device: str = "mps" if torch.backends.mps.is_available() else "cpu"
@@ -27,9 +32,16 @@ frame = []
 switch = False
 mutex = QMutex()
 
-tcp_ip = ''
-tcp_port = 6060
-connected = False
+multicast_group = ('224.0.0.0', 6060)
+
+# Create the datagram socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+# Set the time-to-live for messages to 1 so they do not go past the
+# local network segment.
+ttl = struct.pack('b', 1)
+sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 60)
 
 # Adres streamu wideo
 #url = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compression=30&mirror=0&rotation=0&textsize=small&textposition=b'
@@ -52,6 +64,8 @@ thickness = 3
 class VideoCapture:
   def __init__(self, name, arg = None):
     self.cap = cv2.VideoCapture(name, arg)
+    self.width = self.cap.get(3)
+    self.height = self.cap.get(4)
     self.q = queue.Queue()
     t = threading.Thread(target=self._reader)
     t.daemon = True
@@ -169,9 +183,8 @@ class VideoWidget(QWidget):
         self.model_thread = ModelThread()
         self.com_thread = CommThread()
 
-        #self.com_thread.start()
+        self.com_thread.start()
         self.video_thread.start()
-
         self.video_thread.oryg_video.connect(self.update_orgvid)
 
     def Click(self):
@@ -216,7 +229,11 @@ class VideoThread(QThread):
     def run(self):
         self.active = True
         global frame
+        global frame_width
+        global frame_height
         cap = VideoCapture(url, cv2.CAP_FFMPEG)
+        frame_width = cap.width
+        frame_height = cap.height
         while True:
             #mutex.lock()
             cv_img = cap.read()
@@ -240,24 +257,38 @@ class ModelThread(QThread):
         self.active = True
         global frame
         global connected
+        global frame_width
+        global frame_height
+        global center
+        global move_coeff
+        p1 = (frame_width/4, frame_height)
+        p2 = (frame_width/4, 0)
+        print(p1, p2)
         while self.active:
            # mutex.lock()
             if switch:
+                left_border = int(frame_width - frame_width/5*3)
+                right_border = int(frame_width - frame_width/5*2)
                 if len(frame) > 0:
                     start_time = time.time()
                     results = model.track(frame, show_labels=True, classes = [0])
                     annotated_frame = results[0].plot()
                     #speed = results[0].speed["inference"]
-                    for result in results:
-                        xywh = result.boxes.xywh.tolist()
-                        if xywh != 0:
-                            for i in xywh:
-                                center = (int(i[0]), int(i[1]))
-                                cv2.circle(annotated_frame,center, 10, (0,0,255), -1)
-                   # lag = time.time() - start_time
-                   # if lag < 0.033: # ograniczenie FPS do 30
-                   #     time.sleep(0.033 - lag)
+                    result = results[0]
+                    xywh_all = result.boxes.xywh.tolist()
+                    if (len(xywh_all) > 0):
+                        xywh = xywh_all[0]
+                        center = (int(xywh[0]), int(xywh[0]))
+                        cv2.circle(annotated_frame,center, 10, (0,0,255), -1)
+                        if (center[0] > 0 and center[0] < left_border):
+                            move_coeff = -1 #  "right"
+                        if (center[0] >= left_border and center[0] <= right_border):
+                            move_coeff = 0 #  "stop"
+                        elif (center[0] > right_border):
+                            move_coeff = 1  # "left"
+                    cv2.rectangle(annotated_frame, (left_border, 0), (right_border, int(frame_height)), color, thickness)
                     cv2.putText(annotated_frame, str(round(1/(time.time() - start_time), 2))+" FPS", (50, 100), font, fontScale, color, thickness, cv2.LINE_AA)
+                    cv2.putText(annotated_frame, str(move_coeff), (50, 150), font, fontScale, (0, 255, 0), thickness, cv2.LINE_AA)
                     self.model_video.emit(annotated_frame)
             #mutex.unlock()    
 
@@ -269,30 +300,17 @@ class ModelThread(QThread):
 class CommThread(QThread):
     def run(self):
         global connected
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.bind((tcp_ip, tcp_port))
-        sock.listen(1)
-        self.active = True
-        data = "Działa"
-        while self.active:
-            while not connected:
-                try:
-                    print("czekanie na połączenie")
-                    (clientConnected, clientAddress) = sock.accept()
-                    connected = True
-                except:
-                    connected = False
-
-            while True:
-                try:
-                    clientConnected.send(data.encode())
-                except socket.error:
-                    connected = False
-                    print("Połączenie przerwane")
-                    break
+        while True:
+            try:
+                # Send data to the multicast group
+                print('Wysłano dane')
+                message = "działa"
+                sock.sendto(message.encode(), multicast_group)
+                # Look for responses from all recipients
+            except:
+                print("cos nie dziala")
             time.sleep(1)
        
-
     def stop(self):
         self.active = False
         self.wait()

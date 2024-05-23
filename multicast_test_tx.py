@@ -29,7 +29,6 @@ while True:
         sock.sendto(message, multicast_group)
 
         # Look for responses from all recipients
-    except:
-        print("cos nie dziala")
-        break
+    except Exception as e:
+        print(e)
     time.sleep(1)
