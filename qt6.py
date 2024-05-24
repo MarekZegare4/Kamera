@@ -21,11 +21,12 @@ os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
 #os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'webrtc_transport'
 
 # Wybór modelu 
-model = YOLO('yolov8m.pt')
+model = YOLO('yolov8n.pt')
 face_classifier = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
 # Wybranie GPU jezeli dostępne
-device: str = "mps" if torch.backends.mps.is_available() else "cpu"
+#device: str = "mps" if torch.backends.mps.is_available() else "cpu"
+device = "cpu"
 model.to(device)
 
 frame = []
@@ -231,13 +232,14 @@ class VideoThread(QThread):
         global frame
         global frame_width
         global frame_height
-        cap = VideoCapture(url, cv2.CAP_FFMPEG)
+        #cap = VideoCapture(url, cv2.CAP_FFMPEG)
+        cap = VideoCapture(2)
         frame_width = cap.width
         frame_height = cap.height
         while True:
             #mutex.lock()
             cv_img = cap.read()
-            cv_img = cv2.rotate(cv_img, cv2.ROTATE_90_CLOCKWISE)
+            #cv_img = cv2.rotate(cv_img, cv2.ROTATE_90_CLOCKWISE)
             frame = cv_img
             self.oryg_video.emit(cv_img)
             time.sleep(0.03)
@@ -263,6 +265,10 @@ class ModelThread(QThread):
         global move_coeff
         p1 = (frame_width/4, frame_height)
         p2 = (frame_width/4, 0)
+        v = 0
+        poz = [0, frame_height/2]
+        wariancja_pred = 1
+        wariancja_pom = 10
         print(p1, p2)
         while self.active:
            # mutex.lock()
@@ -278,13 +284,24 @@ class ModelThread(QThread):
                     xywh_all = result.boxes.xywh.tolist()
                     if (len(xywh_all) > 0):
                         xywh = xywh_all[0]
-                        center = (int(xywh[0]), int(xywh[0]))
+                        # KALMAN
+                        td = time.time() - start_time
+                        poz_zmierz = list(xywh)
+                        poz[0] = poz[0] + td*v
+                        v_nowa = 1*v + wariancja_pred * td*td
+                        L = v_nowa + wariancja_pom * td*td
+                        wzm_kalmana = v_nowa/L
+                        poz[0] += wzm_kalmana*(poz_zmierz[0] - poz[0])
+                        v = (1 - wzm_kalmana)*v_nowa
+                        #
+                        center = (int(xywh[0]), int(xywh[1]))
                         cv2.circle(annotated_frame,center, 10, (0,0,255), -1)
-                        if (center[0] > 0 and center[0] < left_border):
+                        cv2.circle(annotated_frame, (int(poz[0]), int(poz[1])), 10, (255,0,0), -1)
+                        if (poz[0] > 0 and poz[0] < left_border):
                             move_coeff = -1 #  "right"
-                        if (center[0] >= left_border and center[0] <= right_border):
+                        if (poz[0] >= left_border and poz[0] <= right_border):
                             move_coeff = 0 #  "stop"
-                        elif (center[0] > right_border):
+                        elif (poz[0] > right_border):
                             move_coeff = 1  # "left"
                     cv2.rectangle(annotated_frame, (left_border, 0), (right_border, int(frame_height)), color, thickness)
                     cv2.putText(annotated_frame, str(round(1/(time.time() - start_time), 2))+" FPS", (50, 100), font, fontScale, color, thickness, cv2.LINE_AA)
