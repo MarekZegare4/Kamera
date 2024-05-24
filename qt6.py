@@ -21,7 +21,7 @@ os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
 #os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'webrtc_transport'
 
 # Wybór modelu 
-model = YOLO('yolov8n.pt')
+model = YOLO('yolov8m.pt')
 face_classifier = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
 # Wybranie GPU jezeli dostępne
@@ -274,7 +274,11 @@ class ModelThread(QThread):
            # mutex.lock()
             if switch:
                 left_border = int(frame_width - frame_width/5*3)
+                left2_border = int(frame_width/5)
+                left3_border = int(0)
                 right_border = int(frame_width - frame_width/5*2)
+                right2_border = int(frame_width - frame_width/5)
+                right3_border = int(frame_width)
                 if len(frame) > 0:
                     start_time = time.time()
                     results = model.track(frame, show_labels=True, classes = [0])
@@ -297,13 +301,25 @@ class ModelThread(QThread):
                         center = (int(xywh[0]), int(xywh[1]))
                         cv2.circle(annotated_frame,center, 10, (0,0,255), -1)
                         cv2.circle(annotated_frame, (int(poz[0]), int(poz[1])), 10, (255,0,0), -1)
-                        if (poz[0] > 0 and poz[0] < left_border):
+
+                        # Strefy prędkości obracania
+                        if (poz[0] >= 0 and poz[0] < left2_border):
+                            move_coeff = -2 #  "right"
+                        if (poz[0] >= left2_border and poz[0] < left_border):
                             move_coeff = -1 #  "right"
                         if (poz[0] >= left_border and poz[0] <= right_border):
                             move_coeff = 0 #  "stop"
-                        elif (poz[0] > right_border):
-                            move_coeff = 1  # "left"
+                        if (poz[0] >= right_border and poz[0] < right2_border):
+                            move_coeff = 1
+                        elif (poz[0] >= right2_border):
+                            move_coeff = 2  # "left"
+                        
                     cv2.rectangle(annotated_frame, (left_border, 0), (right_border, int(frame_height)), color, thickness)
+                    cv2.rectangle(annotated_frame, (right_border, 0), (right2_border, int(frame_height)), (100, 136, 120), thickness)
+                    cv2.rectangle(annotated_frame, (right2_border, 0), (right3_border, int(frame_height)), (255, 255, 120), thickness)
+                    cv2.rectangle(annotated_frame, (left2_border, 0), (left_border, int(frame_height)), (100, 136, 120), thickness)
+                    cv2.rectangle(annotated_frame, (left3_border, 0), (left2_border, int(frame_height)), (255, 255, 120), thickness)
+
                     cv2.putText(annotated_frame, str(round(1/(time.time() - start_time), 2))+" FPS", (50, 100), font, fontScale, color, thickness, cv2.LINE_AA)
                     cv2.putText(annotated_frame, str(move_coeff), (50, 150), font, fontScale, (0, 255, 0), thickness, cv2.LINE_AA)
                     self.model_video.emit(annotated_frame)
@@ -317,11 +333,12 @@ class ModelThread(QThread):
 class CommThread(QThread):
     def run(self):
         global connected
+        global move_coeff
         while True:
             try:
                 # Send data to the multicast group
                 print('Wysłano dane')
-                message = "działa"
+                message = move_coeff
                 sock.sendto(message.encode(), multicast_group)
                 # Look for responses from all recipients
             except:

@@ -23,9 +23,7 @@ mreq = struct.pack('4sL', group, socket.INADDR_ANY)
 sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 while True:
     data, address = sock.recvfrom(1024)
-    message =  pickle.loads(data)
-    print('Odebrano współrzędne:')
-    print('X ' + str(message.x))
-    print('Y ' + str(message.y) + '\n')
+    message = data.decode('utf-8')
+    print(message)
 
 
