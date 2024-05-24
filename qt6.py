@@ -338,11 +338,11 @@ class CommThread(QThread):
             try:
                 # Send data to the multicast group
                 print('Wysłano dane')
-                message = move_coeff
+                message = str(move_coeff)
                 sock.sendto(message.encode(), multicast_group)
                 # Look for responses from all recipients
-            except:
-                print("cos nie dziala")
+            except Exception as e:
+                print(e)
             time.sleep(1)
        
     def stop(self):
