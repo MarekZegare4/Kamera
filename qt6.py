@@ -281,7 +281,7 @@ class ModelThread(QThread):
                 right3_border = int(frame_width)
                 if len(frame) > 0:
                     start_time = time.time()
-                    results = model.track(frame, show_labels=True, classes = [0])
+                    results = model.track(frame, show_labels=True, classes = [0], conf=0.8)
                     annotated_frame = results[0].plot()
                     #speed = results[0].speed["inference"]
                     result = results[0]
