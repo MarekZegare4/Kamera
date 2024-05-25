@@ -8,52 +8,33 @@ from PyQt6.QtGui import QPixmap
 import cv2.data
 from ultralytics import YOLO
 import numpy as np
-import torch
 import time
 import socket
 import queue
 import threading
 import struct
 
-move_coeff = 0
-
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
-#os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'webrtc_transport'
 
 # Wybór modelu 
-model = YOLO('yolov8m.pt')
-face_classifier = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+model = YOLO('model/yolov8s.pt')
 
 # Wybranie GPU jezeli dostępne
 #device: str = "mps" if torch.backends.mps.is_available() else "cpu"
 device = "cpu"
 model.to(device)
 
+move_coeff = 0
 frame = []
 switch = False
 mutex = QMutex()
 
 multicast_group = ('224.0.0.0', 6060)
-
-# Create the datagram socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-# Set the time-to-live for messages to 1 so they do not go past the
-# local network segment.
 ttl = struct.pack('b', 1)
 sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 60)
-
-# Adres streamu wideo
-#url = 'http://173.162.200.86:3123/mjpg/video.mjpg?resolution=1280x1024&compression=30&mirror=0&rotation=0&textsize=small&textposition=b'
-#url = 'http://63.142.183.154:6103/mjpg/video.mjpg'
-#url = 'http://77.110.203.114:82/mjpg/video.mjpg'
-#url = 'rtsp://192.168.0.103:8554/cam'
-#url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
 
 url = 'rtsp://10.3.141.1:8554/cam'
-#url = 'rtsp://10.3.141.1:8889/cam'
-
 
 font = cv2.FONT_HERSHEY_SIMPLEX
 fontScale = 2
@@ -105,7 +86,6 @@ class MainWindow(QMainWindow):
         self.central_widget.setLayout(self.layout)
 
         self.layout.addWidget(self.vid_widget)
-        #self.layout.addWidget(self.set_widget)
         
  
 class SettingsWidget(QWidget):
@@ -232,18 +212,14 @@ class VideoThread(QThread):
         global frame
         global frame_width
         global frame_height
-        #cap = VideoCapture(url, cv2.CAP_FFMPEG)
         cap = VideoCapture(2)
         frame_width = cap.width
         frame_height = cap.height
         while True:
-            #mutex.lock()
             cv_img = cap.read()
-            #cv_img = cv2.rotate(cv_img, cv2.ROTATE_90_CLOCKWISE)
             frame = cv_img
             self.oryg_video.emit(cv_img)
             time.sleep(0.03)
-            #mutex.unlock()
 
     def stop(self):
         self.active = False
@@ -281,9 +257,8 @@ class ModelThread(QThread):
                 right3_border = int(frame_width)
                 if len(frame) > 0:
                     start_time = time.time()
-                    results = model.track(frame, show_labels=True, classes = [0], conf=0.8)
+                    results = model.track(frame, show_labels=True, classes = [0], conf=0.75)
                     annotated_frame = results[0].plot()
-                    #speed = results[0].speed["inference"]
                     result = results[0]
                     xywh_all = result.boxes.xywh.tolist()
                     if (len(xywh_all) > 0):
