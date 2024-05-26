@@ -15,7 +15,6 @@ import threading
 import struct
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
-
 # Wybór modelu 
 model = YOLO('model/yolov8s.pt')
 
@@ -74,91 +73,36 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Kamera")
-        self.setMinimumSize(QSize(1000, 600))
-        self.resize(self.sizeHint())
+        self.setFixedSize(800, 900)
         
-        self.central_widget = QWidget()
-        self.layout = QVBoxLayout()
-        #self.set_widget = SettingsWidget()
-        self.vid_widget = VideoWidget()
-
-        self.setCentralWidget(self.central_widget)
-        self.central_widget.setLayout(self.layout)
-
-        self.layout.addWidget(self.vid_widget)
-        
- 
-class SettingsWidget(QWidget):
-    def __init__(self):
-        super().__init__()
-        #self.layout = QVBoxLayout()
-        #self.setLayout(self.layout)
-        label = QLabel(self)
-        label.setText("Ustawienia")
-        label.move(10, 80)
-
-        self.url_box = QLineEdit(self)
-        self.url_box.move(10, 130)
-        self.url_box.resize(200, 25)
-
-        url_button = QPushButton(self)
-        url_button.move(210, 130)
-        url_button.setText("Ok")
-        url_button.clicked.connect(self.set_url)
-
-        combo = QComboBox(self)
-        combo.move(10, 100)
-        combo.addItem('n')
-        combo.addItem('s')
-        combo.addItem('m')
-        combo.addItem('l')
-        combo.addItem('x')
-
-        combo.currentIndexChanged.connect(self.set_model)
-        #self.layout.addWidget(self.label)
-        #self.layout.addWidget(combo)
-
-    def set_model(self, index):
-        global model
-        if index == 0:
-            model = YOLO('yolov8n.pt')
-        if index == 1:
-            model = YOLO('yolov8s.pt')
-        if index == 2:
-            model = YOLO('yolov8m.pt')
-        if index == 3:
-            model = YOLO('yolov8l.pt')
-        if index == 4:
-            model = YOLO('yolov8x.pt')
-
-    def set_url(self):
-        global url
-        url = self.url_box.text()
-        print(url)
-        
-
-class VideoWidget(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.layout = QVBoxLayout()
-        self.layout2 = QHBoxLayout()
-        self.setLayout(self.layout)
-        self.label = QLabel('Video')
         self.orgvid_label = QLabel(self)
-        self.orgvid_label.resize(640, 480)  # Początkowy rozmiar, może być dowolny
+        self.orgvid_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.orgvid_label.setGeometry(0, 0, 800, 800)
 
-        model_on = QPushButton()
-        model_on.setText("Model toggle")
-        model_on.pressed.connect(self.Click)
+        model = QPushButton(self)
+        model.setText("Model toggle")
+        model.clicked.connect(self.Click)
+        model.setGeometry(0, 800, 800, 25)
 
-        move_left = QPushButton()
-        move_left.setText("<")
+        left = QPushButton(self)
+        left.setText("<")
+        left.clicked.connect(self.send_left)
+        left.setGeometry(0, 825, 200, 75)
 
+        center = QPushButton(self)
+        center.setText("O")
+        center.clicked.connect(self.send_center)
+        center.setGeometry(200, 825, 200, 75)
 
-        self.layout.addWidget(self.label)
-        self.layout.addWidget(self.orgvid_label, Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(model_on)
-        self.layout.addWidget(move_left)
+        right = QPushButton(self)
+        right.setText(">")
+        right.clicked.connect(self.send_right)
+        right.setGeometry(400, 825, 200, 75)
+
+        settings = QPushButton(self)
+        settings.setText("Ustawienia")
+        settings.clicked.connect(self.show_settings)
+        settings.setGeometry(650, 825, 150, 75)
 
         self.video_thread = VideoThread()
         self.model_thread = ModelThread()
@@ -167,6 +111,7 @@ class VideoWidget(QWidget):
         self.com_thread.start()
         self.video_thread.start()
         self.video_thread.oryg_video.connect(self.update_orgvid)
+        print(self.orgvid_label.size())
 
     def Click(self):
         global switch
@@ -180,6 +125,22 @@ class VideoWidget(QWidget):
             self.model_thread.model_video.disconnect(self.update_orgvid)
             self.video_thread.oryg_video.connect(self.update_orgvid)
     
+    def send_left(self):
+        global move_coeff
+        move_coeff = -1
+    
+    # Ustawienie kamery na środku
+    def send_center(self):
+        global move_coeff
+        move_coeff = 10
+    
+    def send_right(self):
+        global move_coeff
+        move_coeff = 1
+    
+    def show_settings(self):
+        self.set_widget = SettingsWidget()
+        self.set_widget.show()
 
     @pyqtSlot(np.ndarray)
     def update_orgvid(self, cv_img):
@@ -200,7 +161,57 @@ class VideoWidget(QWidget):
         p = convert_to_Qt_format.scaled(display_width, display_height, Qt.AspectRatioMode.KeepAspectRatio)
         return QPixmap.fromImage(p)
 
+        # self.central_widget = QWidget()
 
+        #self.set_widget = SettingsWidget()
+        #self.vid_widget = VideoWidget()
+        #self.buttons_widget = ButtonsWidget()
+
+        # self.setCentralWidget(self.central_widget)
+        # self.central_widget.setLayout(self.layout)
+
+        # self.layout.addWidget(self.vid_widget)
+        # self.layout.addWidget(self.buttons_widget)
+        #self.layout.addWidget(self.set_widget)
+        
+ 
+class SettingsWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Ustawienia")
+        self.setFixedSize(400, 400)
+
+        label1 = QLabel(self)
+        label1.setText("Wybór modelu")
+        label1.setGeometry(0, 0, 400, 50)
+        combo = QComboBox(self)
+        combo.setGeometry(0, 70, 400, 50)
+        combo.addItem('n')
+        combo.addItem('s')
+        combo.addItem('m')
+        combo.addItem('l')
+        combo.addItem('x')
+
+        combo.currentIndexChanged.connect(self.set_model)
+
+    def set_model(self, index):
+        global model
+        if index == 0:
+            model = YOLO('model/yolov8n.pt')
+        if index == 1:
+            model = YOLO('model/yolov8s.pt')
+        if index == 2:
+            model = YOLO('model/yolov8m.pt')
+        if index == 3:
+            model = YOLO('model/yolov8l.pt')
+        if index == 4:
+            model = YOLO('model/yolov8x.pt')
+
+    def set_url(self):
+        global url
+        url = self.url_box.text()
+        print(url)
+        
 
 
 # Wątek odpowiedzialny za pobranie klatek wideo ze źródła
@@ -212,14 +223,18 @@ class VideoThread(QThread):
         global frame
         global frame_width
         global frame_height
-        cap = VideoCapture(2)
+        cap = VideoCapture(url, cv2.CAP_FFMPEG)
         frame_width = cap.width
         frame_height = cap.height
         while True:
-            cv_img = cap.read()
-            frame = cv_img
-            self.oryg_video.emit(cv_img)
-            time.sleep(0.03)
+            try:
+                cv_img = cap.read()
+                frame = cv_img
+                self.oryg_video.emit(cv_img)
+                time.sleep(0.03)
+            except Exception as e:
+                print(e)
+                break
 
     def stop(self):
         self.active = False
@@ -312,13 +327,14 @@ class CommThread(QThread):
         while True:
             try:
                 # Send data to the multicast group
-                print('Wysłano dane')
                 message = str(move_coeff)
+                print(message)
                 sock.sendto(message.encode(), multicast_group)
+                move_coeff = 100
                 # Look for responses from all recipients
             except Exception as e:
                 print(e)
-            time.sleep(1)
+            time.sleep(0.2)
        
     def stop(self):
         self.active = False

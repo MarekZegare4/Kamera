@@ -15,7 +15,7 @@ multicast_port = 6060
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 # Bind to the server address
-sock.bind((multicast_group, multicast_port))
+sock.bind(('', multicast_port))
 # Tell the operating system to add the socket to the multicast group
 # on all interfaces.
 group = socket.inet_aton(multicast_group)
