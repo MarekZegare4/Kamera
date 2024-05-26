@@ -13,10 +13,11 @@ import socket
 import queue
 import threading
 import struct
+import pyvirtualcam
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
 # Wybór modelu 
-model = YOLO('model/yolov8s.pt')
+model = YOLO('model/yolov8n.pt')
 
 # Wybranie GPU jezeli dostępne
 #device: str = "mps" if torch.backends.mps.is_available() else "cpu"
@@ -26,6 +27,7 @@ model.to(device)
 move_coeff = 0
 frame = []
 switch = False
+debug = False
 mutex = QMutex()
 
 multicast_group = ('224.0.0.0', 6060)
@@ -192,7 +194,19 @@ class SettingsWidget(QWidget):
         combo.addItem('l')
         combo.addItem('x')
 
+        checkbox = QPushButton(self)
+        checkbox.setText("Debug")
+        checkbox.setGeometry(0, 150, 400, 50)
+        checkbox.clicked.connect(self.set_debug)
+
         combo.currentIndexChanged.connect(self.set_model)
+
+    def set_debug(self):
+        global debug
+        if debug == False:
+            debug = True
+        else:
+            debug = False
 
     def set_model(self, index):
         global model
@@ -216,6 +230,7 @@ class SettingsWidget(QWidget):
 
 # Wątek odpowiedzialny za pobranie klatek wideo ze źródła
 class VideoThread(QThread):
+
     oryg_video = pyqtSignal(np.ndarray)
     active = True
     def run(self):
@@ -224,17 +239,17 @@ class VideoThread(QThread):
         global frame_width
         global frame_height
         cap = VideoCapture(url, cv2.CAP_FFMPEG)
+       
         frame_width = cap.width
         frame_height = cap.height
         while True:
             try:
                 cv_img = cap.read()
+                cv_img = cv2.rotate(cv_img, cv2.ROTATE_90_CLOCKWISE)
                 frame = cv_img
                 self.oryg_video.emit(cv_img)
-                time.sleep(0.03)
             except Exception as e:
                 print(e)
-                break
 
     def stop(self):
         self.active = False
@@ -303,15 +318,15 @@ class ModelThread(QThread):
                             move_coeff = 1
                         elif (poz[0] >= right2_border):
                             move_coeff = 2  # "left"
-                        
-                    cv2.rectangle(annotated_frame, (left_border, 0), (right_border, int(frame_height)), color, thickness)
-                    cv2.rectangle(annotated_frame, (right_border, 0), (right2_border, int(frame_height)), (100, 136, 120), thickness)
-                    cv2.rectangle(annotated_frame, (right2_border, 0), (right3_border, int(frame_height)), (255, 255, 120), thickness)
-                    cv2.rectangle(annotated_frame, (left2_border, 0), (left_border, int(frame_height)), (100, 136, 120), thickness)
-                    cv2.rectangle(annotated_frame, (left3_border, 0), (left2_border, int(frame_height)), (255, 255, 120), thickness)
+                    if debug:
+                        cv2.rectangle(annotated_frame, (left_border, 0), (right_border, int(frame_height)), color, thickness)
+                        cv2.rectangle(annotated_frame, (right_border, 0), (right2_border, int(frame_height)), (100, 136, 120), thickness)
+                        cv2.rectangle(annotated_frame, (right2_border, 0), (right3_border, int(frame_height)), (255, 255, 120), thickness)
+                        cv2.rectangle(annotated_frame, (left2_border, 0), (left_border, int(frame_height)), (100, 136, 120), thickness)
+                        cv2.rectangle(annotated_frame, (left3_border, 0), (left2_border, int(frame_height)), (255, 255, 120), thickness)
 
-                    cv2.putText(annotated_frame, str(round(1/(time.time() - start_time), 2))+" FPS", (50, 100), font, fontScale, color, thickness, cv2.LINE_AA)
-                    cv2.putText(annotated_frame, str(move_coeff), (50, 150), font, fontScale, (0, 255, 0), thickness, cv2.LINE_AA)
+                        cv2.putText(annotated_frame, str(round(1/(time.time() - start_time), 2))+" FPS", (50, 100), font, fontScale, color, thickness, cv2.LINE_AA)
+                        cv2.putText(annotated_frame, str(move_coeff), (50, 150), font, fontScale, (0, 255, 0), thickness, cv2.LINE_AA)
                     self.model_video.emit(annotated_frame)
             #mutex.unlock()    
 
