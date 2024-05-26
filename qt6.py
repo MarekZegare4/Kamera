@@ -13,7 +13,7 @@ import socket
 import queue
 import threading
 import struct
-import pyvirtualcam
+#import pyvirtualcam
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
 # Wybór modelu 
@@ -134,7 +134,7 @@ class MainWindow(QMainWindow):
     # Ustawienie kamery na środku
     def send_center(self):
         global move_coeff
-        move_coeff = 10
+        move_coeff = 100
     
     def send_right(self):
         global move_coeff
@@ -345,11 +345,11 @@ class CommThread(QThread):
                 message = str(move_coeff)
                 print(message)
                 sock.sendto(message.encode(), multicast_group)
-                move_coeff = 100
+                move_coeff = 0
                 # Look for responses from all recipients
             except Exception as e:
                 print(e)
-            time.sleep(0.2)
+            time.sleep(0.05)
        
     def stop(self):
         self.active = False

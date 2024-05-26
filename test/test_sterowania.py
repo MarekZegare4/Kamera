@@ -30,7 +30,7 @@ multicast_port = 6060
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((multicast_group, multicast_port))
 group = socket.inet_aton(multicast_group)
-mreq = struckt.pack('4sL', group, socket_INADDR_ANY)
+mreq = struct.pack('4sL', group, socket.INADDR_ANY)
 sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
 try:
