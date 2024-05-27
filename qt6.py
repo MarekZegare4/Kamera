@@ -13,7 +13,7 @@ import socket
 import queue
 import threading
 import struct
-#import pyvirtualcam
+import pyvirtualcam
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
 # Wybór modelu 
@@ -28,10 +28,12 @@ move_coeff = 0
 frame = []
 switch = False
 debug = False
+vcam = False
 mutex = QMutex()
 
-multicast_group = ('224.0.0.0', 6060)
+multicast_group = ('10.3.141.0', 6060)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
 ttl = struct.pack('b', 1)
 sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
 
@@ -109,6 +111,8 @@ class MainWindow(QMainWindow):
         self.video_thread = VideoThread()
         self.model_thread = ModelThread()
         self.com_thread = CommThread()
+        self.sett_widget = SettingsWidget()
+        
 
         self.com_thread.start()
         self.video_thread.start()
@@ -141,8 +145,7 @@ class MainWindow(QMainWindow):
         move_coeff = 1
     
     def show_settings(self):
-        self.set_widget = SettingsWidget()
-        self.set_widget.show()
+        self.sett_widget.show()
 
     @pyqtSlot(np.ndarray)
     def update_orgvid(self, cv_img):
@@ -175,7 +178,10 @@ class MainWindow(QMainWindow):
         # self.layout.addWidget(self.vid_widget)
         # self.layout.addWidget(self.buttons_widget)
         #self.layout.addWidget(self.set_widget)
-        
+    
+    def closeEvent(self, event):
+        QApplication.closeAllWindows()
+        event.accept()
  
 class SettingsWidget(QWidget):
     def __init__(self):
@@ -194,19 +200,49 @@ class SettingsWidget(QWidget):
         combo.addItem('l')
         combo.addItem('x')
 
-        checkbox = QPushButton(self)
-        checkbox.setText("Debug")
-        checkbox.setGeometry(0, 150, 400, 50)
-        checkbox.clicked.connect(self.set_debug)
+        self.checkbox = QPushButton(self)
+        self.checkbox.setText("Debug")
+        self.checkbox.setGeometry(0, 150, 400, 50)
+        self.checkbox.clicked.connect(self.set_debug)
+
+        self.virtual_cam = QPushButton(self)
+        self.virtual_cam.setText("Virtual Cam")
+        self.virtual_cam.setGeometry(0, 220, 400, 50)
+        self.virtual_cam.clicked.connect(self.set_vcam)
 
         combo.currentIndexChanged.connect(self.set_model)
+
+        self.vcam_thread = VirtualCamThread()
+
+        if debug == False:
+            self.checkbox.setStyleSheet("QPushButton { background-color: #FF7F7F }")
+        else:
+            self.checkbox.setStyleSheet("QPushButton { background-color: #90EE90 }")
+
+        if vcam == False:
+            self.virtual_cam.setStyleSheet("QPushButton { background-color: #FF7F7F }")
+        else:
+            self.virtual_cam.setStyleSheet("QPushButton { background-color: #90EE90 }")
+
+    def set_vcam(self):
+        global vcam
+        if vcam == False:
+            self.vcam_thread.start()
+            self.virtual_cam.setStyleSheet("QPushButton { background-color: #90EE90 }")
+            vcam = True
+        else:
+            self.vcam_thread.stop()
+            self.virtual_cam.setStyleSheet("QPushButton { background-color: #FF7F7F }")
+            vcam = False
 
     def set_debug(self):
         global debug
         if debug == False:
             debug = True
+            self.checkbox.setStyleSheet("QPushButton { background-color: #90EE90 }")
         else:
             debug = False
+            self.checkbox.setStyleSheet("QPushButton { background-color: #FF7F7F }")
 
     def set_model(self, index):
         global model
@@ -230,7 +266,6 @@ class SettingsWidget(QWidget):
 
 # Wątek odpowiedzialny za pobranie klatek wideo ze źródła
 class VideoThread(QThread):
-
     oryg_video = pyqtSignal(np.ndarray)
     active = True
     def run(self):
@@ -264,18 +299,14 @@ class ModelThread(QThread):
     def run(self):
         self.active = True
         global frame
-        global connected
         global frame_width
         global frame_height
         global center
         global move_coeff
-        p1 = (frame_width/4, frame_height)
-        p2 = (frame_width/4, 0)
         v = 0
-        poz = [0, frame_height/2]
+        poz = [frame_width/2, frame_height/2]
         wariancja_pred = 1
         wariancja_pom = 10
-        print(p1, p2)
         while self.active:
            # mutex.lock()
             if switch:
@@ -288,7 +319,7 @@ class ModelThread(QThread):
                 if len(frame) > 0:
                     start_time = time.time()
                     results = model.track(frame, show_labels=True, classes = [0], conf=0.75)
-                    annotated_frame = results[0].plot()
+                    annotated_frame = frame
                     result = results[0]
                     xywh_all = result.boxes.xywh.tolist()
                     if (len(xywh_all) > 0):
@@ -303,9 +334,6 @@ class ModelThread(QThread):
                         poz[0] += wzm_kalmana*(poz_zmierz[0] - poz[0])
                         v = (1 - wzm_kalmana)*v_nowa
                         #
-                        center = (int(xywh[0]), int(xywh[1]))
-                        cv2.circle(annotated_frame,center, 10, (0,0,255), -1)
-                        cv2.circle(annotated_frame, (int(poz[0]), int(poz[1])), 10, (255,0,0), -1)
 
                         # Strefy prędkości obracania
                         if (poz[0] >= 0 and poz[0] < left2_border):
@@ -318,7 +346,13 @@ class ModelThread(QThread):
                             move_coeff = 1
                         elif (poz[0] >= right2_border):
                             move_coeff = 2  # "left"
+
+                        if debug:
+                            center = (int(xywh[0]), int(xywh[1]))
+                            cv2.circle(annotated_frame,center, 10, (0,0,255), -1)
+                            cv2.circle(annotated_frame, (int(poz[0]), int(poz[1])), 10, (255,0,0), -1)
                     if debug:
+                        annotated_frame = results[0].plot()
                         cv2.rectangle(annotated_frame, (left_border, 0), (right_border, int(frame_height)), color, thickness)
                         cv2.rectangle(annotated_frame, (right_border, 0), (right2_border, int(frame_height)), (100, 136, 120), thickness)
                         cv2.rectangle(annotated_frame, (right2_border, 0), (right3_border, int(frame_height)), (255, 255, 120), thickness)
@@ -337,7 +371,6 @@ class ModelThread(QThread):
 #   Wątek odpowiedzialny za komunikajcę z kamerą
 class CommThread(QThread):
     def run(self):
-        global connected
         global move_coeff
         while True:
             try:
@@ -350,11 +383,25 @@ class CommThread(QThread):
             except Exception as e:
                 print(e)
             time.sleep(0.05)
-       
+
+class VirtualCamThread(QThread):
+    def run(self):
+        self.active = True
+        global frame
+        fmt = pyvirtualcam.PixelFormat.BGR
+        with pyvirtualcam.Camera(width=1080, height=1080, fps=30, fmt=fmt) as cam:
+            while self.active:
+                try:
+                    frame = cv2.resize(frame, (1080, 1080), interpolation = cv2.BORDER_DEFAULT)
+                    cam.send(frame)
+                    cam.sleep_until_next_frame()
+                except Exception as e:
+                    print(e)
+
     def stop(self):
         self.active = False
         self.wait()
-
+        
 app = QApplication(sys.argv)
 window = MainWindow()
 window.show()
