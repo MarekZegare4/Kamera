@@ -30,6 +30,7 @@ switch = False
 debug = False
 vcam = False
 mutex = QMutex()
+conf = 0.6
 
 multicast_group = ('10.3.141.0', 6060)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -84,7 +85,7 @@ class MainWindow(QMainWindow):
         self.orgvid_label.setGeometry(0, 0, 800, 800)
 
         model = QPushButton(self)
-        model.setText("Model toggle")
+        model.setText("Wykrywanie")
         model.clicked.connect(self.Click)
         model.setGeometry(0, 800, 800, 25)
 
@@ -193,7 +194,7 @@ class SettingsWidget(QWidget):
         label1.setText("Wybór modelu")
         label1.setGeometry(0, 0, 400, 50)
         combo = QComboBox(self)
-        combo.setGeometry(0, 70, 400, 50)
+        combo.setGeometry(0, 40, 400, 50)
         combo.addItem('n')
         combo.addItem('s')
         combo.addItem('m')
@@ -206,9 +207,18 @@ class SettingsWidget(QWidget):
         self.checkbox.clicked.connect(self.set_debug)
 
         self.virtual_cam = QPushButton(self)
-        self.virtual_cam.setText("Virtual Cam")
+        self.virtual_cam.setText("Kamera wirtualna")
         self.virtual_cam.setGeometry(0, 220, 400, 50)
         self.virtual_cam.clicked.connect(self.set_vcam)
+        
+        
+        self.label2 = QLabel(self)
+        self.label2.setText("Próg wykrywania: " + str(conf))
+        self.label2.setGeometry(0, 270, 400, 20)
+        self.slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.slider.setGeometry(0, 310, 400, 20)
+        self.slider.setRange(60, 100)
+        self.slider.valueChanged.connect(self.updateLabel)
 
         combo.currentIndexChanged.connect(self.set_model)
 
@@ -223,6 +233,11 @@ class SettingsWidget(QWidget):
             self.virtual_cam.setStyleSheet("QPushButton { background-color: #FF7F7F }")
         else:
             self.virtual_cam.setStyleSheet("QPushButton { background-color: #90EE90 }")
+
+    def updateLabel(self, value):
+        global conf
+        conf = value/100
+        self.label2.setText("Próg wykrywania: " + str(conf))
 
     def set_vcam(self):
         global vcam
@@ -303,6 +318,7 @@ class ModelThread(QThread):
         global frame_height
         global center
         global move_coeff
+        global conf
         v = 0
         poz = [frame_width/2, frame_height/2]
         wariancja_pred = 1
@@ -318,7 +334,7 @@ class ModelThread(QThread):
                 right3_border = int(frame_width)
                 if len(frame) > 0:
                     start_time = time.time()
-                    results = model.track(frame, show_labels=True, classes = [0], conf=0.75)
+                    results = model.track(frame, show_labels=True, classes = [0], conf=conf)
                     annotated_frame = frame
                     result = results[0]
                     xywh_all = result.boxes.xywh.tolist()
