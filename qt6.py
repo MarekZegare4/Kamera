@@ -13,7 +13,7 @@ import socket
 import queue
 import threading
 import struct
-import pyvirtualcam
+#import pyvirtualcam
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
 # Wybór modelu 
@@ -32,7 +32,7 @@ vcam = False
 mutex = QMutex()
 conf = 0.6
 
-multicast_group = ('10.3.141.0', 6060)
+multicast_group = ('224.0.0.0', 6060)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 ttl = struct.pack('b', 1)
@@ -78,36 +78,36 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Kamera")
-        self.setFixedSize(800, 900)
+        self.setFixedSize(1000, 662)
         
         self.orgvid_label = QLabel(self)
         self.orgvid_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.orgvid_label.setGeometry(0, 0, 800, 800)
+        self.orgvid_label.setGeometry(0, 0, 1000, 562)
 
         model = QPushButton(self)
         model.setText("Wykrywanie")
         model.clicked.connect(self.Click)
-        model.setGeometry(0, 800, 800, 25)
+        model.setGeometry(0, 562, 1000, 25)
 
         left = QPushButton(self)
         left.setText("<")
         left.clicked.connect(self.send_left)
-        left.setGeometry(0, 825, 200, 75)
+        left.setGeometry(0, 587, 250, 75)
 
         center = QPushButton(self)
         center.setText("O")
         center.clicked.connect(self.send_center)
-        center.setGeometry(200, 825, 200, 75)
+        center.setGeometry(250, 587, 250, 75)
 
         right = QPushButton(self)
         right.setText(">")
         right.clicked.connect(self.send_right)
-        right.setGeometry(400, 825, 200, 75)
+        right.setGeometry(500, 587, 250, 75)
 
         settings = QPushButton(self)
         settings.setText("Ustawienia")
         settings.clicked.connect(self.show_settings)
-        settings.setGeometry(650, 825, 150, 75)
+        settings.setGeometry(850, 587, 150, 75)
 
         self.video_thread = VideoThread()
         self.model_thread = ModelThread()
@@ -295,7 +295,6 @@ class VideoThread(QThread):
         while True:
             try:
                 cv_img = cap.read()
-                cv_img = cv2.rotate(cv_img, cv2.ROTATE_90_CLOCKWISE)
                 frame = cv_img
                 self.oryg_video.emit(cv_img)
             except Exception as e:
