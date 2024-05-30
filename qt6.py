@@ -13,7 +13,15 @@ import socket
 import queue
 import threading
 import struct
-#import pyvirtualcam
+import pyvirtualcam
+import psutil
+
+addrs = psutil.net_if_addrs()
+for key in addrs:
+    for addr in addrs[key]:
+        if addr.address.startswith('10.3.141'):
+            wifi_address = addr.address
+    
 
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
 # Wybór modelu 
@@ -47,7 +55,7 @@ thickness = 3
 
 # https://stackoverflow.com/questions/43665208/how-to-get-the-latest-frame-from-capture-device-camera-in-opencv
 # bufferless VideoCapture
-class VideoCapture:
+class VideoCapture(cv2.VideoCapture):
   def __init__(self, name, arg = None):
     self.cap = cv2.VideoCapture(name, arg)
     self.width = self.cap.get(3)
@@ -289,7 +297,7 @@ class VideoThread(QThread):
         global frame_width
         global frame_height
         cap = VideoCapture(url, cv2.CAP_FFMPEG)
-       
+        print("Kamera połączona")
         frame_width = cap.width
         frame_height = cap.height
         while True:
@@ -387,11 +395,12 @@ class ModelThread(QThread):
 class CommThread(QThread):
     def run(self):
         global move_coeff
+        sock.bind((wifi_address, 6060))
         while True:
             try:
                 # Send data to the multicast group
                 message = str(move_coeff)
-                print(message)
+                #print(message)
                 sock.sendto(message.encode(), multicast_group)
                 move_coeff = 0
                 # Look for responses from all recipients
