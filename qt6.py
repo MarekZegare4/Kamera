@@ -15,6 +15,7 @@ import threading
 import struct
 import pyvirtualcam
 import psutil
+import openvino as ov
 
 addrs = psutil.net_if_addrs()
 for key in addrs:
@@ -26,6 +27,11 @@ for key in addrs:
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
 # Wybór modelu 
 model = YOLO('model/yolov8n.pt')
+# Export the model
+#model.export(format="openvino")  # creates 'yolov8n_openvino_model/'
+# Load the exported OpenVINO model
+ov_model = YOLO("model/yolov8n_openvino_model", task="detect")
+
 
 # Wybranie GPU jezeli dostępne
 #device: str = "mps" if torch.backends.mps.is_available() else "cpu"
@@ -88,6 +94,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Kamera")
         self.setFixedSize(1000, 662)
         
+        self.timer_left = QTimer()
+        self.timer_right = QTimer()
+
         self.orgvid_label = QLabel(self)
         self.orgvid_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.orgvid_label.setGeometry(0, 0, 1000, 562)
@@ -99,8 +108,10 @@ class MainWindow(QMainWindow):
 
         left = QPushButton(self)
         left.setText("<")
-        left.clicked.connect(self.send_left)
         left.setGeometry(0, 587, 250, 75)
+        left.pressed.connect(self.on_press_left)
+        left.released.connect(self.on_release_left)
+        self.timer_left.timeout.connect(self.send_left)
 
         center = QPushButton(self)
         center.setText("O")
@@ -109,8 +120,10 @@ class MainWindow(QMainWindow):
 
         right = QPushButton(self)
         right.setText(">")
-        right.clicked.connect(self.send_right)
         right.setGeometry(500, 587, 250, 75)
+        right.pressed.connect(self.on_press_right)
+        right.released.connect(self.on_release_right)
+        self.timer_right.timeout.connect(self.send_right)
 
         settings = QPushButton(self)
         settings.setText("Ustawienia")
@@ -140,6 +153,18 @@ class MainWindow(QMainWindow):
             self.model_thread.model_video.disconnect(self.update_orgvid)
             self.video_thread.oryg_video.connect(self.update_orgvid)
     
+    def on_release_left(self):
+        self.timer_left.stop()
+    
+    def on_release_right(self):
+        self.timer_right.stop()
+
+    def on_press_left(self):
+        self.timer_left.start(int(1000/30))
+    
+    def on_press_right(self):
+        self.timer_right.start(int(1000/30))
+
     def send_left(self):
         global move_coeff
         move_coeff = -1
@@ -341,8 +366,9 @@ class ModelThread(QThread):
                 right3_border = int(frame_width)
                 if len(frame) > 0:
                     start_time = time.time()
-                    results = model.track(frame, show_labels=True, classes = [0], conf=conf)
+                    results = ov_model.track(frame, show_labels=True, classes = [0], conf=conf)
                     annotated_frame = frame
+                    cv2.circle(annotated_frame, (int(frame_width - 100), 100), 20, (0,255,0), -1)
                     result = results[0]
                     xywh_all = result.boxes.xywh.tolist()
                     if (len(xywh_all) > 0):
@@ -372,18 +398,16 @@ class ModelThread(QThread):
 
                         if debug:
                             center = (int(xywh[0]), int(xywh[1]))
-                            cv2.circle(annotated_frame,center, 10, (0,0,255), -1)
+                            annotated_frame = results[0].plot()
+                            cv2.circle(annotated_frame, center, 10, (0,0,255), -1)
                             cv2.circle(annotated_frame, (int(poz[0]), int(poz[1])), 10, (255,0,0), -1)
-                    if debug:
-                        annotated_frame = results[0].plot()
-                        cv2.rectangle(annotated_frame, (left_border, 0), (right_border, int(frame_height)), color, thickness)
-                        cv2.rectangle(annotated_frame, (right_border, 0), (right2_border, int(frame_height)), (100, 136, 120), thickness)
-                        cv2.rectangle(annotated_frame, (right2_border, 0), (right3_border, int(frame_height)), (255, 255, 120), thickness)
-                        cv2.rectangle(annotated_frame, (left2_border, 0), (left_border, int(frame_height)), (100, 136, 120), thickness)
-                        cv2.rectangle(annotated_frame, (left3_border, 0), (left2_border, int(frame_height)), (255, 255, 120), thickness)
-
-                        cv2.putText(annotated_frame, str(round(1/(time.time() - start_time), 2))+" FPS", (50, 100), font, fontScale, color, thickness, cv2.LINE_AA)
-                        cv2.putText(annotated_frame, str(move_coeff), (50, 150), font, fontScale, (0, 255, 0), thickness, cv2.LINE_AA)
+                            cv2.rectangle(annotated_frame, (left_border, 0), (right_border, int(frame_height)), color, thickness)
+                            cv2.rectangle(annotated_frame, (right_border, 0), (right2_border, int(frame_height)), (100, 136, 120), thickness)
+                            cv2.rectangle(annotated_frame, (right2_border, 0), (right3_border, int(frame_height)), (255, 255, 120), thickness)
+                            cv2.rectangle(annotated_frame, (left2_border, 0), (left_border, int(frame_height)), (100, 136, 120), thickness)
+                            cv2.rectangle(annotated_frame, (left3_border, 0), (left2_border, int(frame_height)), (255, 255, 120), thickness)
+                            cv2.putText(annotated_frame, str(round(1/(time.time() - start_time), 2))+" FPS", (50, 100), font, fontScale, color, thickness, cv2.LINE_AA)
+                            cv2.putText(annotated_frame, str(move_coeff), (50, 150), font, fontScale, (0, 255, 0), thickness, cv2.LINE_AA)
                     self.model_video.emit(annotated_frame)
             #mutex.unlock()    
 
@@ -406,17 +430,16 @@ class CommThread(QThread):
                 # Look for responses from all recipients
             except Exception as e:
                 print(e)
-            time.sleep(0.05)
+            time.sleep(0.03)
 
 class VirtualCamThread(QThread):
     def run(self):
         self.active = True
         global frame
         fmt = pyvirtualcam.PixelFormat.BGR
-        with pyvirtualcam.Camera(width=1080, height=1080, fps=30, fmt=fmt) as cam:
+        with pyvirtualcam.Camera(width=1920, height=1080, fps=30, fmt=fmt) as cam:
             while self.active:
                 try:
-                    frame = cv2.resize(frame, (1080, 1080), interpolation = cv2.BORDER_DEFAULT)
                     cam.send(frame)
                     cam.sleep_until_next_frame()
                 except Exception as e:
